@@ -3,6 +3,14 @@ __pycache__/
 *.pyc
 .venv/
 
+# LaTeX (fichiers intermediaires)
+report/*.aux
+report/*.log
+report/*.out
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex*
+
 # Sorties de simulation generees
 sim_build/
 *.vvp
