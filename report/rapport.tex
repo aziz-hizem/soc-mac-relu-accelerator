@@ -4,11 +4,13 @@
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage[french]{babel}
-\usepackage[margin=2.3cm]{geometry}
+\usepackage[margin=2.1cm]{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
 \usepackage{hyperref}
 \usepackage{microtype}
 
@@ -26,7 +28,7 @@
   belowskip=4pt
 }
 
-% Les pages ne contenant qu'un flottant : alignement en haut de page
+% Pages ne contenant qu'un flottant : alignement en haut de page
 \makeatletter
 \setlength{\@fptop}{0pt}
 \setlength{\@fpsep}{8pt plus 1fil}
@@ -83,51 +85,85 @@
 {\large \today}
 \end{titlepage}
 
-\section{Objectif}
+\section{Introduction}
 
-Les réseaux de neurones reposent sur une opération élémentaire : la somme pondérée
-$\sum_i a_i \times b_i$, suivie d'une fonction d'activation. Ce projet conçoit en
-Verilog un accélérateur matériel minimal pour ces deux opérations :
-une unité \emph{MAC} (Multiply-Accumulate) et une activation \emph{ReLU},
-$\mathrm{ReLU}(x)=\max(0,x)$. Le circuit est vérifié par un testbench HDL, par un
-modèle Python de référence et par des tests automatisés cocotb.
+Un neurone artificiel fait deux choses : il calcule une somme pondérée de ses
+entrées, puis il applique une fonction d'activation au résultat. En laissant le
+biais de côté, cela donne $y = \mathrm{ReLU}\bigl(\sum_i x_i\,w_i\bigr)$. Dans un
+réseau, ce calcul est répété des millions de fois, et c'est pour cela qu'on a
+intérêt à le câbler directement dans un circuit plutôt que de le laisser à un
+processeur qui exécute une instruction après l'autre.
 
-Le code, les tests et ce rapport sont disponibles sur GitHub :
+Le but de ce mini-projet est d'en construire la version la plus petite possible :
+une unité de multiplication-accumulation (MAC) suivie d'une ReLU. Nous avons décrit
+le circuit en Verilog, nous l'avons simulé avec Icarus Verilog et nous avons vérifié
+ses résultats de trois façons différentes : un testbench Verilog, un modèle Python
+et des tests cocotb. Tout le code est sur GitHub :
+\url{https://github.com/aziz-hizem/soc-mac-relu-accelerator}.
 
-\begin{center}
-\small\url{https://github.com/aziz-hizem/soc-mac-relu-accelerator}
-\end{center}
+Nous avons travaillé sous Windows avec Icarus Verilog 12 pour la simulation,
+GTKWave pour regarder les signaux, Python et NumPy pour le modèle de référence,
+cocotb 2.1.0 pour automatiser les tests et Verilator 5 pour l'analyse statique du
+code. Verilator est surtout prévu pour Linux ; sous Windows nous avons utilisé le
+paquet \texttt{verilator} de pip, qui embarque l'exécutable.
 
-\section{Outils}
+\section{Comprendre le circuit}
 
-\begin{center}
-\begin{tabular}{@{}ll@{}}
-\toprule
-Outil & Rôle \\
-\midrule
-Icarus Verilog 12 & compilation et simulation du Verilog \\
-GTKWave & visualisation des chronogrammes (fichiers VCD) \\
-Verilator 5 & analyse statique (\emph{lint}) du code HDL \\
-Python, NumPy & modèle de référence \\
-cocotb 2.1.0 & tests automatisés du circuit en Python \\
-\bottomrule
-\end{tabular}
-\end{center}
+\subsection{Ce qu'il calcule}
 
-\section{Conception}
+La figure~\ref{fig:schema} résume le circuit. À chaque front montant de l'horloge,
+il prend les deux entrées $a$ et $b$, les multiplie, et ajoute le produit à la
+valeur stockée dans le registre \texttt{acc}. Le registre garde donc la somme des
+produits depuis le dernier reset. La ReLU est branchée directement sur la sortie du
+registre : elle renvoie \texttt{acc} si celui-ci est positif et $0$ sinon. Comme
+elle ne mémorise rien, elle n'a pas besoin d'horloge.
 
-Le module \texttt{mac\_relu} (fichier \texttt{mac\_relu.v}) possède une horloge
-\texttt{clk}, un reset asynchrone \texttt{reset}, deux entrées signées sur 8 bits
-\texttt{a} et \texttt{b}, un accumulateur signé sur 32 bits \texttt{acc} et la
-sortie \texttt{relu\_out}. À chaque front montant de l'horloge :
-\[
-\texttt{acc} \leftarrow \texttt{acc} + a \times b, \qquad
-\texttt{relu\_out} = \max(0,\texttt{acc}).
-\]
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}[>=stealth,
+  box/.style={draw, minimum height=0.8cm, inner sep=3pt, align=center, font=\small}]
+\node[box, minimum width=0.9cm] (mult) {$\times$};
+\node[left=0.9cm of mult, yshift=0.4cm]  (a) {\small\texttt{a}};
+\node[left=0.9cm of mult, yshift=-0.4cm] (b) {\small\texttt{b}};
+\node[box, minimum width=0.9cm, right=1.3cm of mult] (add) {$+$};
+\node[box, right=1.3cm of add] (reg) {registre \texttt{acc}\\[-1pt]\scriptsize 32 bits};
+\node[box, right=1.3cm of reg] (relu) {ReLU};
+\node[right=0.9cm of relu] (out) {\small\texttt{relu\_out}};
+\node[above=0.55cm of reg] (clk) {\scriptsize \texttt{clk}, \texttt{reset}};
+\draw[->] (a.east) -- (mult.155);
+\draw[->] (b.east) -- (mult.205);
+\draw[->] (mult) -- node[above, font=\scriptsize] {16 bits} (add);
+\draw[->] (add) -- (reg);
+\draw[->] (reg) -- (relu);
+\draw[->] (relu) -- (out);
+\draw[->] (clk) -- (reg.north);
+\draw[->] (reg.south) -- ++(0,-0.7) -| (add.south);
+\end{tikzpicture}
+\caption{Schéma du circuit. Les entrées $a$ et $b$ font 8 bits. Le registre est
+mis à jour à chaque front montant de \texttt{clk}.}
+\label{fig:schema}
+\end{figure}
 
-Le produit $a\times b$ est calculé sur 16 bits signés, puis étendu en signe sur
-32 bits avant l'addition ; sans cette extension, les produits négatifs seraient
-mal accumulés. La sortie ReLU est combinatoire.
+Prenons les quatre premiers cycles de notre simulation, avec $(a,b)$ valant
+$(-3,4)$, $(2,3)$, $(5,4)$ puis $(-2,3)$. Les produits sont $-12$, $6$, $20$ et
+$-6$, et le registre passe successivement par $-12$, $-6$, $14$ et $8$. La ReLU
+donne donc $0$, $0$, $14$ et $8$ : tant que la somme est négative, la sortie reste
+à zéro, et elle ne suit le registre qu'à partir du troisième cycle.
+
+\subsection{Pourquoi ces largeurs de bits}
+
+Les entrées sont des entiers signés sur 8 bits en complément à deux, donc compris
+entre $-128$ et $127$. Le plus grand produit en valeur absolue est
+$(-128)\times(-128)=16384=2^{14}$ ; il tient dans un entier signé de 16 bits, qui
+va jusqu'à $32\,767$. Pour l'accumulateur nous avons pris 32 bits, ce qui laisse
+beaucoup de marge : il faudrait ajouter plus de $2^{31}/2^{14}=131\,072$ produits
+maximaux de suite pour le faire déborder.
+
+\section{Réalisation en Verilog}
+
+Le module \texttt{mac\_relu} (fichier \texttt{mac\_relu.v}) a pour entrées
+\texttt{clk}, \texttt{reset}, \texttt{a} et \texttt{b}, et pour sorties \texttt{acc}
+et \texttt{relu\_out}. Voici le c\oe ur du code :
 
 \begin{lstlisting}[language=Verilog,morekeywords={always,posedge,assign,wire,signed}]
 wire signed [15:0] produit = a * b;
@@ -140,36 +176,53 @@ end
 assign relu_out = (acc > 0) ? acc : 32'sd0;
 \end{lstlisting}
 
+La ligne qui demande le plus d'attention est l'addition. Le produit fait 16 bits
+mais \texttt{acc} en fait 32, il faut donc agrandir le produit avant de l'ajouter.
+La notation \verb|{16{produit[15]}}| recopie seize fois le bit de signe devant le
+produit : c'est l'extension de signe. Si on complétait simplement avec des zéros,
+un produit négatif serait lu comme un grand nombre positif. Par exemple $-12$
+s'écrit \texttt{FFF4} sur 16 bits, soit $65\,524$ une fois complété par des zéros.
+Le reset, lui, est asynchrone : il remet \texttt{acc} à zéro dès qu'il passe à 1,
+sans attendre un front d'horloge.
+
 \section{Vérification}
 
-La vérification repose sur trois niveaux complémentaires, qui utilisent les mêmes
-vecteurs de test (huit couples $(a,b)$, dont les cas limites
-$(-128)\times(-128)$ et $127\times127$).
+\textbf{Testbench Verilog.} Notre premier testbench se contentait d'afficher les
+valeurs dans le terminal, et c'était à nous de les comparer à la main avec ce
+qu'on attendait. Cela convient pour quatre cas, beaucoup moins au-delà. Nous
+l'avons donc réécrit pour qu'il fasse la comparaison lui-même : il applique huit
+couples $(a,b)$, dont $(-128)\times(-128)$ et $127\times127$, vérifie \texttt{acc}
+et \texttt{relu\_out} après chaque front d'horloge, teste aussi le reset, puis
+affiche soit que tout a réussi, soit le nombre d'erreurs. Les valeurs attendues y
+sont écrites à la main, ce qui nous oblige à garder la même liste de vecteurs dans
+le testbench et dans les fichiers Python.
 
-\begin{itemize}
-  \item \textbf{Testbench Verilog} (\texttt{tb\_mac\_relu.v}) : il est
-  auto-vérifiant. Il applique les huit vecteurs, compare \texttt{acc} et
-  \texttt{relu\_out} aux valeurs attendues, teste le reset puis affiche
-  \texttt{TOUS LES TESTS ONT REUSSI} ou le nombre d'erreurs. Il écrit aussi le
-  fichier VCD utilisé pour le chronogramme.
-  \item \textbf{Modèle Python} (\texttt{vectors.py}, \texttt{reference.py}) :
-  le modèle calcule le produit, l'accumulation et la ReLU cycle par cycle ;
-  \texttt{reference.py} affiche le tableau de référence avec NumPy.
-  \item \textbf{Tests cocotb} (\texttt{test\_mac\_relu.py}) : un premier test
-  rejoue les huit vecteurs ; un second applique 500 cycles aléatoires (graine
-  fixe 2026) avec un reset au cycle 250. À chaque cycle, \texttt{acc} et
-  \texttt{relu\_out} sont comparés au modèle Python.
-\end{itemize}
+\textbf{Modèle Python et cocotb.} Le fichier \texttt{vectors.py} contient les
+mêmes huit vecteurs et une petite fonction qui calcule, cycle par cycle, le
+produit, la somme et la ReLU ; \texttt{reference.py} affiche le tableau avec NumPy.
+Les tests cocotb (\texttt{test\_mac\_relu.py}) pilotent le circuit depuis Python et
+comparent ses sorties à ce modèle à chaque cycle. Le premier test rejoue les huit
+vecteurs. Le second tire 500 couples au hasard (graine fixée à 2026), avec un
+reset au cycle 250 pour vérifier que l'accumulateur repart bien de zéro. Ici les
+valeurs attendues ne sont pas écrites à la main : c'est le modèle Python qui sert
+de juge.
 
-Pour contrôler que le testbench détecte bien les erreurs, nous avons introduit
-volontairement un défaut (suppression de l'extension de signe) dans une copie du
-module : le testbench signale alors une erreur sur chacun des huit cycles.
+\textbf{Un test qui sait échouer.} Un test qui réussit toujours ne prouve rien.
+Nous avons donc recopié le module en supprimant volontairement l'extension de
+signe et relancé le testbench : il a signalé une erreur sur chacun des huit
+cycles, et on voit apparaître la valeur $65\,524$ à la place de $-12$.
+
+\textbf{Verilator.} L'analyse statique avec \texttt{--lint-only -Wall} a d'abord
+remonté deux avertissements sans gravité : une directive \texttt{timescale}
+manquante dans \texttt{mac\_relu.v} et la façon dont l'horloge était initialisée
+dans le testbench. Après correction, le module et le testbench passent sans aucun
+avertissement.
 
 \section{Résultats}
 
-Le tableau~\ref{tab:res} donne les valeurs obtenues. Elles sont identiques dans le
-testbench Verilog, dans le modèle Python et dans les tests cocotb. Les deux
-premières sommes sont négatives et la ReLU les ramène à zéro.
+Le tableau~\ref{tab:res} donne les valeurs obtenues en simulation. Ce sont les
+mêmes dans le testbench Verilog, dans le modèle Python et dans les tests cocotb,
+et cocotb termine avec \texttt{TESTS=2 PASS=2 FAIL=0}.
 
 \begin{table}[h]
 \centering
@@ -191,35 +244,39 @@ Cycle & $a$ & $b$ & Produit & ACC & ReLU \\
 \end{tabular}
 \end{table}
 
-\begin{figure}[t]
+La figure~\ref{fig:chrono} montre la même simulation sous forme de chronogramme.
+Le testbench change les entrées sur chaque front descendant de l'horloge (10~ns,
+20~ns, etc.) et l'accumulateur se met à jour sur le front montant suivant (15~ns,
+25~ns, etc.). On voit que \texttt{relu\_out} reste à $0$ jusqu'à 35~ns, au moment où
+\texttt{acc} passe à $14$, et que la petite impulsion de reset vers 90~ns remet
+l'accumulateur à zéro. Nous avons regardé ces signaux dans GTKWave pendant le
+développement ; la figure du rapport est tracée par le script
+\texttt{plot\_waveform.py} à partir du fichier VCD, pour pouvoir la refaire à
+l'identique.
+
+\begin{figure}[h]
 \centering
-\includegraphics[width=\textwidth]{../docs/chronogramme.png}
+\includegraphics[width=0.8\textwidth]{../docs/chronogramme.png}
 \caption{Chronogramme de la simulation : horloge, reset, entrées $a$ et $b$,
 accumulateur et sortie ReLU (valeurs en décimal signé).}
 \label{fig:chrono}
 \end{figure}
 
-La figure~\ref{fig:chrono} montre que l'accumulateur se met à jour à chaque front
-montant de l'horloge et que \texttt{relu\_out} reste à zéro tant que \texttt{acc}
-est négatif. Les chronogrammes ont été observés avec GTKWave pendant le
-développement ; la figure finale est tracée par un script Python
-(\texttt{plot\_waveform.py}) à partir du fichier VCD, ce qui la rend reproductible.
-
-Le cocotb signale \texttt{TESTS=2 PASS=2 FAIL=0}. L'analyse Verilator
-(\texttt{--lint-only -Wall}) du module et du testbench ne produit aucun
-avertissement.
-
 \section{Limites et conclusion}
 
-L'accumulateur est signé sur 32 bits et ne détecte pas le débordement : avec des
-entrées sur 8 bits, il pourrait déborder après environ $2^{31}/2^{14}=131\,072$
-produits maximaux consécutifs. Le reset est asynchrone, ce qui convient à ce
-circuit simple. Les entrées sont des entiers sur 8 bits ; un vrai accélérateur
-manipulerait des vecteurs et plusieurs unités MAC en parallèle.
+Le circuit a des limites qu'il vaut mieux dire clairement. L'accumulateur ne
+détecte pas le débordement : au-delà de l'ordre de $131\,000$ produits maximaux
+il repartirait de l'autre côté de l'intervalle sans prévenir. Il n'y a qu'une seule
+unité MAC qui traite un couple par cycle, alors qu'un vrai accélérateur en placerait
+plusieurs en parallèle. Enfin, nous n'avons fait que simuler le circuit ; il n'a pas
+été synthétisé sur FPGA, donc nous ne pouvons rien dire de sa vitesse ou de sa
+taille.
 
-Le projet répond au cahier des charges : une unité MAC avec ReLU, un testbench
-HDL auto-vérifiant, un modèle Python de référence avec comparaison automatique
-(cocotb), des chronogrammes et une analyse statique Verilator. Toutes les
-vérifications réussissent sur les cas testés.
+Le projet couvre ce qui était demandé : une unité MAC, une ReLU, un testbench HDL,
+une comparaison avec un modèle Python, des chronogrammes et une analyse Verilator.
+La partie la plus délicate du circuit est l'extension de signe, et c'est aussi
+celle que nos tests détectent le mieux quand on la casse. Les commandes pour
+relancer toutes les simulations sont décrites dans le fichier \texttt{README.md}
+du dépôt.
 
 \end{document}
