@@ -32,6 +32,7 @@ relu_out  = max(0, acc)           (combinational)
 | `test_mac_relu.py` | cocotb tests: fixed vectors and 500 random cycles |
 | `run_test.py` | Builds the design and runs the cocotb tests |
 | `plot_waveform.py` | Draws the chronogram from the VCD file |
+| `app/` | Interactive web interface (`server.py` + `static/`) |
 | `docs/chronogramme.png` | Chronogram of the Verilog testbench run |
 | `requirements.txt` | Python dependencies |
 
@@ -89,6 +90,30 @@ python plot_waveform.py
 This writes `docs/chronogramme.png` from `relu_simulation.vcd` (run the Verilog testbench first).
 
 ![Chronogramme](docs/chronogramme.png)
+
+## Interactive interface
+
+A small local web app lets you type input pairs and watch the circuit work, cycle
+by cycle. It runs the real `mac_relu.v` through Icarus Verilog and checks every
+result against the Python model.
+
+```powershell
+python app/server.py
+```
+
+This opens http://127.0.0.1:8765 in your browser (add `--no-browser` to skip that,
+`--port 9000` to change the port). Icarus Verilog must be installed
+(`C:\iverilog\bin` is also searched if it is not on the PATH).
+
+- Edit the (a, b) rows, or use "Exemple du rapport" / "Aléatoire". The simulation
+  re-runs automatically.
+- The "RAZ" box resets the accumulator before that cycle.
+- Play, step with the arrow keys, or click the chronogram or a table row to move
+  between cycles. The diagram shows the values flowing through the circuit.
+- The status badge shows whether Verilog and Python agree.
+
+The server only listens on `127.0.0.1` and uses nothing beyond the Python standard
+library.
 
 ## Expected results
 

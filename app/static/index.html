@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MAC + ReLU : simulateur</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>Accélérateur MAC + ReLU</h1>
+    <p>Simulation interactive du circuit Verilog</p>
+  </div>
+  <div id="status" class="pill idle" role="status" aria-live="polite">Prêt</div>
+</header>
+
+<main class="layout">
+
+  <!-- Entrées -->
+  <section class="card inputs">
+    <h2><span class="step">1</span> Entrées</h2>
+    <p class="hint">Chaque ligne est un cycle d'horloge. À chaque cycle, le circuit
+      calcule <code>ACC ← ACC + a × b</code>.</p>
+
+    <div class="toolbar">
+      <button class="btn" id="btn-example" type="button">Exemple du rapport</button>
+      <button class="btn" id="btn-random" type="button">Aléatoire</button>
+      <button class="btn ghost" id="btn-clear" type="button">Vider</button>
+    </div>
+
+    <div class="rows-head" aria-hidden="true">
+      <span>#</span><span>a</span><span>b</span><span title="Remet ACC à 0 avant ce cycle">RAZ</span><span></span>
+    </div>
+    <div id="rows" class="rows"></div>
+
+    <button class="btn add" id="btn-add" type="button">+ Ajouter un cycle</button>
+    <p class="hint small">Valeurs entières de −128 à 127 (8 bits signés).
+      « RAZ » remet l'accumulateur à zéro avant le cycle.</p>
+  </section>
+
+  <div class="col">
+
+    <!-- Circuit -->
+    <section class="card">
+      <div class="card-head">
+        <h2><span class="step">2</span> Le circuit, cycle par cycle</h2>
+        <div class="player">
+          <button class="icon" id="btn-prev" type="button" aria-label="Cycle précédent" title="Précédent (←)">‹</button>
+          <button class="icon play" id="btn-play" type="button" aria-label="Lecture" title="Lecture / pause (espace)">▶</button>
+          <button class="icon" id="btn-next" type="button" aria-label="Cycle suivant" title="Suivant (→)">›</button>
+          <span class="cycle-label" id="cycle-label">Cycle –</span>
+        </div>
+      </div>
+
+      <input id="slider" class="slider" type="range" min="0" max="0" value="0" aria-label="Choix du cycle">
+
+      <svg id="circuit" viewBox="0 0 870 250" role="img" aria-label="Schéma du circuit avec les valeurs du cycle courant">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" class="arrowhead"/>
+          </marker>
+        </defs>
+
+        <!-- Liaisons -->
+        <path class="wire" d="M106 64 H210 V79" marker-end="url(#arrow)"/>
+        <path class="wire" d="M106 154 H210 V131" marker-end="url(#arrow)"/>
+        <path class="wire" d="M236 105 H342" marker-end="url(#arrow)"/>
+        <path class="wire" d="M394 105 H470" marker-end="url(#arrow)"/>
+        <path class="wire" d="M600 105 H650" marker-end="url(#arrow)"/>
+        <path class="wire" d="M730 105 H770" marker-end="url(#arrow)"/>
+        <path class="wire feedback" d="M535 150 V212 H370 V131" marker-end="url(#arrow)"/>
+        <path class="wire clock" d="M535 34 V58" marker-end="url(#arrow)"/>
+
+        <!-- Entrées -->
+        <rect class="node" x="10" y="40" width="96" height="48" rx="10"/>
+        <text class="lbl" x="22" y="58">a</text>
+        <text class="num" id="v-a" x="58" y="79" text-anchor="middle">–</text>
+
+        <rect class="node" x="10" y="130" width="96" height="48" rx="10"/>
+        <text class="lbl" x="22" y="148">b</text>
+        <text class="num" id="v-b" x="58" y="169" text-anchor="middle">–</text>
+
+        <!-- Multiplieur -->
+        <circle class="op" cx="210" cy="105" r="26"/>
+        <text class="opsym" x="210" y="115" text-anchor="middle">×</text>
+
+        <!-- Produit -->
+        <rect class="chip" x="252" y="114" width="76" height="28" rx="14"/>
+        <text class="lbl" x="290" y="102" text-anchor="middle">produit</text>
+        <text class="num small" id="v-prod" x="290" y="133" text-anchor="middle">–</text>
+
+        <!-- Additionneur -->
+        <circle class="op" cx="370" cy="105" r="26"/>
+        <text class="opsym" x="370" y="116" text-anchor="middle">+</text>
+
+        <!-- Ancien ACC (retour) -->
+        <rect class="chip" x="396" y="196" width="108" height="30" rx="15"/>
+        <text class="lbl" x="450" y="187" text-anchor="middle">ancien ACC</text>
+        <text class="num small" id="v-old" x="450" y="216" text-anchor="middle">–</text>
+
+        <!-- Registre -->
+        <rect class="node reg" id="reg-box" x="470" y="60" width="130" height="90" rx="12"/>
+        <text class="lbl" x="535" y="80" text-anchor="middle">registre ACC</text>
+        <text class="num big" id="v-acc" x="535" y="121" text-anchor="middle">–</text>
+        <text class="lbl tiny" x="535" y="140" text-anchor="middle">32 bits</text>
+        <text class="lbl tiny" x="535" y="22" text-anchor="middle">clk · reset</text>
+
+        <!-- ReLU -->
+        <rect class="node relu" x="650" y="75" width="80" height="60" rx="10"/>
+        <text class="relu-title" x="690" y="111" text-anchor="middle">ReLU</text>
+        <text class="lbl tiny" x="690" y="127" text-anchor="middle">max(0, x)</text>
+
+        <!-- Sortie -->
+        <text class="lbl" x="812" y="64" text-anchor="middle">relu_out</text>
+        <rect class="node out" id="out-box" x="770" y="76" width="84" height="58" rx="10"/>
+        <text class="num" id="v-relu" x="812" y="113" text-anchor="middle">–</text>
+      </svg>
+
+      <p id="explain" class="explain">Ajoutez des entrées pour lancer la simulation.</p>
+    </section>
+
+    <!-- Chronogramme -->
+    <section class="card">
+      <div class="card-head">
+        <h2><span class="step">3</span> Chronogramme</h2>
+        <span class="hint small">Cliquez sur le chronogramme pour changer de cycle.</span>
+      </div>
+      <div id="wave" class="wave"></div>
+    </section>
+
+    <!-- Tableau -->
+    <section class="card">
+      <div class="card-head">
+        <h2><span class="step">4</span> Résultats et vérification</h2>
+        <span class="hint small">Verilog (simulé) comparé au modèle Python.</span>
+      </div>
+      <div class="table-wrap">
+        <table id="table">
+          <thead>
+            <tr><th>Cycle</th><th>a</th><th>b</th><th>Produit</th><th>ACC</th><th>ReLU</th><th>Python</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</main>
+
+<footer class="foot">
+  Les valeurs affichées viennent de la simulation réelle de <code>mac_relu.v</code> avec Icarus Verilog.
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
