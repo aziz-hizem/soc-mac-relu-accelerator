@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Sorties de simulation generees
+sim_build/
+*.vvp
+*.vcd
+*.fst
+*.lxt
+*.gtkw
