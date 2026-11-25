@@ -98,14 +98,14 @@ Le but de ce mini-projet est d'en construire la version la plus petite possible 
 une unité de multiplication-accumulation (MAC) suivie d'une ReLU. Nous avons décrit
 le circuit en Verilog, nous l'avons simulé avec Icarus Verilog et nous avons vérifié
 ses résultats de trois façons différentes : un testbench Verilog, un modèle Python
-et des tests cocotb. Tout le code est sur GitHub :
-\url{https://github.com/aziz-hizem/soc-mac-relu-accelerator}.
+et des tests cocotb. Nous avons aussi ajouté une petite interface web pour essayer
+le circuit avec ses propres valeurs (section~\ref{sec:interface}). Tout le code est
+sur GitHub : \url{https://github.com/aziz-hizem/soc-mac-relu-accelerator}.
 
-Nous avons travaillé sous Windows avec Icarus Verilog 12 pour la simulation,
-GTKWave pour regarder les signaux, Python et NumPy pour le modèle de référence,
-cocotb 2.1.0 pour automatiser les tests et Verilator 5 pour l'analyse statique du
-code. Verilator est surtout prévu pour Linux ; sous Windows nous avons utilisé le
-paquet \texttt{verilator} de pip, qui embarque l'exécutable.
+Nous avons travaillé sous Windows avec Icarus Verilog 12 (simulation), GTKWave
+(signaux), Python et NumPy (modèle de référence), cocotb 2.1.0 (tests automatiques)
+et Verilator 5 (analyse statique). Verilator est surtout prévu pour Linux ; nous
+avons utilisé le paquet \texttt{verilator} de pip, qui embarque l'exécutable.
 
 \section{Comprendre le circuit}
 
@@ -188,95 +188,109 @@ sans attendre un front d'horloge.
 \section{Vérification}
 
 \textbf{Testbench Verilog.} Notre premier testbench se contentait d'afficher les
-valeurs dans le terminal, et c'était à nous de les comparer à la main avec ce
-qu'on attendait. Cela convient pour quatre cas, beaucoup moins au-delà. Nous
-l'avons donc réécrit pour qu'il fasse la comparaison lui-même : il applique huit
-couples $(a,b)$, dont $(-128)\times(-128)$ et $127\times127$, vérifie \texttt{acc}
-et \texttt{relu\_out} après chaque front d'horloge, teste aussi le reset, puis
-affiche soit que tout a réussi, soit le nombre d'erreurs. Les valeurs attendues y
-sont écrites à la main, ce qui nous oblige à garder la même liste de vecteurs dans
-le testbench et dans les fichiers Python.
+valeurs dans le terminal, et nous devions les comparer à la main. Nous l'avons
+réécrit pour qu'il compare lui-même : il applique huit couples $(a,b)$, dont
+$(-128)\times(-128)$ et $127\times127$, vérifie \texttt{acc} et \texttt{relu\_out}
+après chaque front d'horloge, teste le reset, puis affiche que tout a réussi ou le
+nombre d'erreurs. Les valeurs attendues y sont écrites à la main : il faut donc
+garder la même liste de vecteurs que dans les fichiers Python.
 
 \textbf{Modèle Python et cocotb.} Le fichier \texttt{vectors.py} contient les
-mêmes huit vecteurs et une petite fonction qui calcule, cycle par cycle, le
-produit, la somme et la ReLU ; \texttt{reference.py} affiche le tableau avec NumPy.
-Les tests cocotb (\texttt{test\_mac\_relu.py}) pilotent le circuit depuis Python et
-comparent ses sorties à ce modèle à chaque cycle. Le premier test rejoue les huit
-vecteurs. Le second tire 500 couples au hasard (graine fixée à 2026), avec un
-reset au cycle 250 pour vérifier que l'accumulateur repart bien de zéro. Ici les
-valeurs attendues ne sont pas écrites à la main : c'est le modèle Python qui sert
-de juge.
+mêmes huit vecteurs et une fonction qui calcule, cycle par cycle, le produit, la
+somme et la ReLU. Les tests cocotb pilotent le circuit depuis Python et comparent
+ses sorties à ce modèle : un premier test rejoue les huit vecteurs, un second tire
+500 couples au hasard (graine 2026) avec un reset au cycle 250. Ici, c'est le
+modèle Python qui sert de juge, rien n'est écrit à la main.
 
 \textbf{Un test qui sait échouer.} Un test qui réussit toujours ne prouve rien.
-Nous avons donc recopié le module en supprimant volontairement l'extension de
-signe et relancé le testbench : il a signalé une erreur sur chacun des huit
-cycles, et on voit apparaître la valeur $65\,524$ à la place de $-12$.
+Nous avons donc supprimé volontairement l'extension de signe dans une copie du
+module : le testbench a signalé une erreur sur les huit cycles, avec $65\,524$ à la
+place de $-12$.
 
-\textbf{Verilator.} L'analyse statique avec \texttt{--lint-only -Wall} a d'abord
-remonté deux avertissements sans gravité : une directive \texttt{timescale}
-manquante dans \texttt{mac\_relu.v} et la façon dont l'horloge était initialisée
-dans le testbench. Après correction, le module et le testbench passent sans aucun
-avertissement.
+\textbf{Verilator.} L'analyse \texttt{--lint-only -Wall} a d'abord remonté deux
+avertissements sans gravité (un \texttt{timescale} manquant dans
+\texttt{mac\_relu.v} et l'initialisation de l'horloge dans le testbench). Après
+correction, il n'y en a plus aucun.
 
 \section{Résultats}
 
-Le tableau~\ref{tab:res} donne les valeurs obtenues en simulation. Ce sont les
-mêmes dans le testbench Verilog, dans le modèle Python et dans les tests cocotb,
-et cocotb termine avec \texttt{TESTS=2 PASS=2 FAIL=0}.
+Les valeurs obtenues en simulation sont les mêmes dans le testbench Verilog, dans
+le modèle Python et dans les tests cocotb, et cocotb termine avec
+\texttt{TESTS=2 PASS=2 FAIL=0}. Avec nos huit couples, l'accumulateur passe par
+$-12$, $-6$, $14$, $8$, puis $16\,392$, $32\,521$, $32\,521$ et $32\,393$ ; la ReLU
+donne $0$ pour les deux premières sommes négatives et recopie ensuite l'accumulateur.
+Le détail de chaque cycle est dans le tableau de la figure~\ref{fig:tableau}.
 
-\begin{table}[h]
-\centering
-\caption{Résultats de simulation (identiques pour Verilog, Python et cocotb).}
-\label{tab:res}
-\begin{tabular}{@{}rrrrrr@{}}
-\toprule
-Cycle & $a$ & $b$ & Produit & ACC & ReLU \\
-\midrule
-1 & $-3$   & 4    & $-12$   & $-12$ & 0 \\
-2 & 2      & 3    & 6       & $-6$  & 0 \\
-3 & 5      & 4    & 20      & 14    & 14 \\
-4 & $-2$   & 3    & $-6$    & 8     & 8 \\
-5 & $-128$ & $-128$ & 16384 & 16392 & 16392 \\
-6 & 127    & 127  & 16129   & 32521 & 32521 \\
-7 & 0      & 5    & 0       & 32521 & 32521 \\
-8 & $-128$ & 1    & $-128$  & 32393 & 32393 \\
-\bottomrule
-\end{tabular}
-\end{table}
+Sur le chronogramme (figure~\ref{fig:apercu}), le testbench change les entrées sur
+chaque front descendant de l'horloge et l'accumulateur se met à jour sur le front
+montant suivant. On voit que \texttt{relu\_out} reste à $0$ tant que \texttt{acc}
+est négatif, puis suit \texttt{acc} à partir du cycle 3. Nous avons regardé ces
+signaux dans GTKWave pendant le développement ; le script \texttt{plot\_waveform.py}
+du dépôt trace aussi ce chronogramme à partir du fichier VCD.
 
-La figure~\ref{fig:chrono} montre la même simulation sous forme de chronogramme.
-Le testbench change les entrées sur chaque front descendant de l'horloge (10~ns,
-20~ns, etc.) et l'accumulateur se met à jour sur le front montant suivant (15~ns,
-25~ns, etc.). On voit que \texttt{relu\_out} reste à $0$ jusqu'à 35~ns, au moment où
-\texttt{acc} passe à $14$, et que la petite impulsion de reset vers 90~ns remet
-l'accumulateur à zéro. Nous avons regardé ces signaux dans GTKWave pendant le
-développement ; la figure du rapport est tracée par le script
-\texttt{plot\_waveform.py} à partir du fichier VCD, pour pouvoir la refaire à
-l'identique.
+\section{Une interface pour manipuler le circuit}
+\label{sec:interface}
+
+Les simulations en ligne de commande parlent peu à quelqu'un qui découvre le
+circuit. Nous avons donc ajouté une petite interface web, lancée en local par une
+seule commande (\texttt{python app/server.py}). On y tape ses propres valeurs et on
+voit ce que fait le circuit, cycle par cycle.
+
+La figure~\ref{fig:apercu} montre l'interface avec les huit cycles de l'exemple,
+ouverte sur le troisième. Elle a trois zones.
+\begin{enumerate}\setlength{\itemsep}{1pt}
+  \item \textbf{Entrées}, à gauche : chaque ligne est un cycle d'horloge. On
+  modifie $a$ et $b$, on ajoute ou on supprime des cycles, ou on prend l'exemple du
+  rapport ou des valeurs au hasard. La case « RAZ » remet l'accumulateur à zéro
+  avant le cycle. Tout se relance automatiquement.
+  \item \textbf{Circuit}, en haut à droite : le schéma de la figure~\ref{fig:schema}
+  rempli avec les valeurs du cycle choisi (flèches, curseur ou bouton de lecture
+  pour avancer). Au cycle 3, le circuit calcule $5\times4=20$, l'ajoute à l'ancien
+  ACC ($-6$) pour obtenir $14$, et la ReLU laisse passer cette somme positive.
+  \item \textbf{Chronogramme}, en dessous : les signaux au cours du temps, avec un
+  repère sur le cycle courant ; un clic change de cycle. Rouge : valeur négative,
+  vert : positive, gris : zéro.
+\end{enumerate}
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.8\textwidth]{../docs/chronogramme.png}
-\caption{Chronogramme de la simulation : horloge, reset, entrées $a$ et $b$,
-accumulateur et sortie ReLU (valeurs en décimal signé).}
-\label{fig:chrono}
+\includegraphics[width=0.72\textwidth]{../docs/interface-apercu.png}
+\caption{L'interface, ouverte sur le cycle 3 (le chronogramme défile pour les
+cycles suivants).}
+\label{fig:apercu}
 \end{figure}
+
+La page se termine par un tableau de résultats (figure~\ref{fig:tableau}). Sa
+dernière colonne compare, ligne par ligne, le circuit Verilog et le modèle Python,
+et un bandeau en haut de la page affiche « Verilog = Python » quand tout concorde.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.68\textwidth]{../docs/interface-resultats.png}
+\caption{Tableau de résultats de l'interface (cycle 3 sélectionné).}
+\label{fig:tableau}
+\end{figure}
+
+Le navigateur envoie les couples à un petit serveur Python local, qui écrit un
+testbench, lance Icarus Verilog sur le vrai fichier \texttt{mac\_relu.v} et calcule
+aussi le résultat avec le modèle Python. Il renvoie les deux au navigateur : les
+nombres affichés viennent donc bien de la simulation, la page ne les recalcule pas.
 
 \section{Limites et conclusion}
 
-Le circuit a des limites qu'il vaut mieux dire clairement. L'accumulateur ne
-détecte pas le débordement : au-delà de l'ordre de $131\,000$ produits maximaux
-il repartirait de l'autre côté de l'intervalle sans prévenir. Il n'y a qu'une seule
-unité MAC qui traite un couple par cycle, alors qu'un vrai accélérateur en placerait
-plusieurs en parallèle. Enfin, nous n'avons fait que simuler le circuit ; il n'a pas
-été synthétisé sur FPGA, donc nous ne pouvons rien dire de sa vitesse ou de sa
-taille.
+Le circuit a des limites. L'accumulateur ne détecte pas le débordement : après
+environ $131\,000$ produits maximaux de suite, il repartirait de l'autre côté de
+l'intervalle sans prévenir. Il n'y a qu'une seule unité MAC, alors qu'un vrai
+accélérateur en placerait plusieurs en parallèle. Enfin, nous n'avons fait que
+simuler le circuit, sans le synthétiser sur FPGA : nous ne pouvons donc rien dire de
+sa vitesse ou de sa taille. L'interface ne fait qu'afficher cette simulation et
+demande Icarus Verilog sur l'ordinateur.
 
 Le projet couvre ce qui était demandé : une unité MAC, une ReLU, un testbench HDL,
-une comparaison avec un modèle Python, des chronogrammes et une analyse Verilator.
-La partie la plus délicate du circuit est l'extension de signe, et c'est aussi
-celle que nos tests détectent le mieux quand on la casse. Les commandes pour
-relancer toutes les simulations sont décrites dans le fichier \texttt{README.md}
+une comparaison avec un modèle Python, des chronogrammes et une analyse Verilator,
+avec l'interface en plus pour montrer le circuit. La partie la plus délicate est
+l'extension de signe, et c'est aussi celle que nos tests détectent le mieux quand on
+la casse. Les commandes pour tout relancer sont dans le fichier \texttt{README.md}
 du dépôt.
 
 \end{document}

@@ -111,6 +111,7 @@ This opens http://127.0.0.1:8765 in your browser (add `--no-browser` to skip tha
 - Play, step with the arrow keys, or click the chronogram or a table row to move
   between cycles. The diagram shows the values flowing through the circuit.
 - The status badge shows whether Verilog and Python agree.
+- Add `?cycle=3` to the address to open the page directly on a given cycle.
 
 The server only listens on `127.0.0.1` and uses nothing beyond the Python standard
 library.

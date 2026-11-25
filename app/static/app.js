@@ -150,6 +150,10 @@ async function simuler() {
 
     etat.cycles = donnees.cycles;
     etat.courant = Math.min(etat.courant, etat.cycles.length - 1);
+    if (etat.initial !== null) {   // ?cycle=N dans l'URL : ouvre directement ce cycle
+      etat.courant = Math.max(0, Math.min(etat.initial - 1, etat.cycles.length - 1));
+      etat.initial = null;
+    }
     tout();
     if (donnees.all_match) {
       statut("ok", `Verilog = Python ✓ · ${donnees.cycles.length} cycles · ${donnees.ms} ms`);
@@ -420,6 +424,8 @@ function dessinerChronogramme() {
 }
 
 // ---------- Demarrage ----------
+const cycleUrl = parseInt(new URLSearchParams(location.search).get("cycle"), 10);
+etat.initial = Number.isInteger(cycleUrl) ? cycleUrl : null;
 etat.lignes = EXEMPLE.map(([a, b]) => ({ a, b, reset: false }));
 dessinerLignes();
 tout();
