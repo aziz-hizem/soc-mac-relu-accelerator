@@ -13,8 +13,91 @@
     <h1>Accélérateur MAC + ReLU</h1>
     <p>Simulation interactive du circuit Verilog</p>
   </div>
-  <div id="status" class="pill idle" role="status" aria-live="polite">Prêt</div>
+  <div class="top-actions">
+    <button id="btn-info" class="btn info-btn" type="button" aria-expanded="false" aria-controls="info-card">
+      <span class="i" aria-hidden="true">i</span>
+      <span>Comprendre le projet</span>
+      <span class="chev" aria-hidden="true">▾</span>
+    </button>
+    <div id="status" class="pill idle" role="status" aria-live="polite">Prêt</div>
+  </div>
 </header>
+
+<!-- Carte d'aide, repliée par défaut -->
+<div class="info-wrap">
+  <section id="info-card" class="info" aria-label="Explications du projet" inert>
+    <div class="info-inner">
+      <div class="info-card">
+        <div class="info-head">
+          <h2>Comprendre ce projet, même sans rien connaître</h2>
+          <button id="btn-info-close" class="btn ghost" type="button">Fermer</button>
+        </div>
+
+        <div class="info-grid">
+
+          <div class="info-col">
+            <h3>Le projet en bref</h3>
+            <p>Une intelligence artificielle (un « réseau de neurones ») passe son temps à
+              refaire un tout petit calcul : <strong>multiplier des nombres deux par deux</strong>,
+              <strong>additionner tous les résultats</strong>, puis <strong>remplacer le total par 0
+              s'il est négatif</strong>.</p>
+            <p>Nous avons dessiné un petit circuit électronique qui fait exactement cela.
+              Il n'existe pas encore « en vrai » : c'est un plan, écrit dans un langage appelé
+              Verilog, que l'ordinateur <strong>simule</strong>, un peu comme un simulateur de vol
+              fait voler un avion sans quitter le sol.</p>
+            <div class="example">
+              <strong>Exemple</strong>
+              <p>3 × 4 = 12 → le total devient <b>12</b>.<br>
+                Puis −5 × 2 = −10 → le total devient 12 + (−10) = <b>2</b>.<br>
+                Le total est positif, on le garde : résultat <b>2</b>.<br>
+                S'il avait été −3, le circuit aurait répondu <b>0</b>.</p>
+            </div>
+          </div>
+
+          <div class="info-col">
+            <h3>Les mots à connaître</h3>
+            <dl>
+              <dt>MAC</dt>
+              <dd>« Multiplier puis accumuler » : on multiplie <code>a × b</code> et on ajoute le
+                résultat à un total.</dd>
+              <dt>ACC (accumulateur)</dt>
+              <dd>La petite mémoire où le circuit garde le total depuis le début.</dd>
+              <dt>ReLU</dt>
+              <dd>Une règle très simple : si le total est positif on le garde, sinon on met 0.</dd>
+              <dt>Cycle d'horloge</dt>
+              <dd>Un « top » régulier. À chaque top, le circuit traite une ligne de valeurs.</dd>
+              <dt>RAZ (reset)</dt>
+              <dd>Remet le total à zéro avant un cycle.</dd>
+              <dt>Verilog</dt>
+              <dd>Le langage qui décrit le circuit, un peu comme une recette.</dd>
+            </dl>
+          </div>
+
+          <div class="info-col">
+            <h3>Comment utiliser cette page</h3>
+            <ol>
+              <li><strong>À gauche (Entrées)</strong> : chaque ligne est un cycle avec deux nombres,
+                <code>a</code> et <code>b</code>, entre −128 et 127. Changez-les, ajoutez des lignes ou
+                cliquez sur « Aléatoire ».</li>
+              <li>Tout se <strong>recalcule tout seul</strong> dès que vous modifiez une valeur.</li>
+              <li>Appuyez sur <strong>▶</strong> (ou sur les flèches ← →) pour avancer cycle par cycle.
+                Le schéma montre le calcul : a × b, ajouté à l'ancien total, puis la ReLU.</li>
+              <li>Cliquez sur le <strong>chronogramme</strong> ou sur une ligne du
+                <strong>tableau</strong> pour aller directement à un cycle.</li>
+            </ol>
+            <p class="legend"><span class="dot pos"></span> positif
+              <span class="dot neg"></span> négatif
+              <span class="dot zero"></span> zéro</p>
+            <p><strong>« Verilog = Python ✓ »</strong> : les résultats du circuit simulé sont comparés à
+              un calcul fait à part en Python. S'ils sont identiques, le circuit est correct pour les
+              valeurs essayées.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
 
 <main class="layout">
 

@@ -423,6 +423,28 @@ function dessinerChronogramme() {
   conteneur.appendChild(enveloppe);
 }
 
+// ---------- Carte d'aide ----------
+const carteInfo = $("#info-card");
+const boutonInfo = $("#btn-info");
+
+function basculerInfo(ouvrir) {
+  const ouvert = ouvrir === undefined ? !carteInfo.classList.contains("open") : ouvrir;
+  carteInfo.classList.toggle("open", ouvert);
+  if (ouvert) carteInfo.removeAttribute("inert");
+  else carteInfo.setAttribute("inert", "");
+  boutonInfo.setAttribute("aria-expanded", String(ouvert));
+}
+
+boutonInfo.addEventListener("click", () => basculerInfo());
+$("#btn-info-close").addEventListener("click", () => { basculerInfo(false); boutonInfo.focus(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && carteInfo.classList.contains("open")) {
+    basculerInfo(false);
+    boutonInfo.focus();
+  }
+});
+if (new URLSearchParams(location.search).has("info")) basculerInfo(true);
+
 // ---------- Demarrage ----------
 const cycleUrl = parseInt(new URLSearchParams(location.search).get("cycle"), 10);
 etat.initial = Number.isInteger(cycleUrl) ? cycleUrl : null;

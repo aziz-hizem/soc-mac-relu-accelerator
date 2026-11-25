@@ -110,6 +110,9 @@ This opens http://127.0.0.1:8765 in your browser (add `--no-browser` to skip tha
 - The "RAZ" box resets the accumulator before that cycle.
 - Play, step with the arrow keys, or click the chronogram or a table row to move
   between cycles. The diagram shows the values flowing through the circuit.
+- The "Comprendre le projet" button (top right) expands a beginner-friendly card:
+  what the project is, a small glossary and how to use the page. Press Escape or
+  "Fermer" to close it. Add `?info=1` to the address to open it directly.
 - The status badge shows whether Verilog and Python agree.
 - Add `?cycle=3` to the address to open the page directly on a given cycle.
 
